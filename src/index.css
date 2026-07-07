@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@theme {
+  /* Muted clock-state backgrounds (spec colors) — use as bg-clock-in / bg-clock-out */
+  --color-clock-in: #7c9d84;
+  --color-clock-out: #b07f7f;
+}
