@@ -3,8 +3,8 @@
 A simple employee time-clock app. Employees enter their ID on the home page and clock in/out on a full-screen page designed for phones. An admin panel — unlocked by the admin's employee ID — manages employees.
 
 - **Frontend:** Vite + React + TypeScript (`/`, `/clock`, `/admin`)
-- **Backend:** Vercel serverless functions in [api/](api/)
-- **Database:** Neon Postgres (schema in [db/schema.sql](db/schema.sql))
+- **Backend:** Vercel serverless functions in [api/](api/), or a standalone Node server ([server.mjs](server.mjs)) for self-hosting
+- **Database:** Neon Postgres (schema in [db/schema.sql](db/schema.sql)) when deployed on Vercel, or embedded persistent [PGlite](https://pglite.dev/) when self-hosted (Docker or `npm start`)
 
 ## Pages
 
@@ -33,6 +33,37 @@ A simple employee time-clock app. Employees enter their ID on the home page and 
 2. In the project's **Storage** tab, create/attach a **Neon** Postgres database — this injects `DATABASE_URL` into the project.
 3. Deploy, then apply the schema once (see below).
 4. Open `/admin` — while the database is empty, any ID logs you in. Add yourself first: you become the admin, and from then on only your employee ID opens the admin panel.
+
+## Self-hosting with Docker
+
+No Vercel account and no external database needed — the container runs the app with an embedded, persistent Postgres ([PGlite](https://pglite.dev/)) and applies [db/schema.sql](db/schema.sql) automatically on startup.
+
+```sh
+docker build -t time-clock .
+docker run -d --name time-clock -p 3000:3000 -v time-clock-data:/data --restart unless-stopped time-clock
+```
+
+Then open http://localhost:3000.
+
+> [!WARNING]
+> On first run the database is empty, so `/admin` is in **bootstrap mode**: any employee ID logs in until the first employee is added. That first employee becomes the permanent admin. If the server is reachable by anyone else, open `/admin` and add yourself immediately after starting the container.
+
+- **Data:** stored in the named volume `time-clock-data`, mounted at `/data` (configurable via the `PGLITE_DATA_DIR` env var). Back up the volume to back up all data.
+- **Updating:** `git pull`, then `docker build -t time-clock .` again, then `docker rm -f time-clock` and re-run the `docker run` command above — data survives because it lives in the volume, not the container.
+- **Changing the port:** the app listens on `3000` inside the container (overridable via `PORT`); map it to a different host port with e.g. `-p 8080:3000`.
+- **Exposing it beyond your local network:** put it behind a reverse proxy (Caddy, nginx, Traefik, etc.) with HTTPS. The admin session is a bearer token, so it should not travel over plain HTTP outside a trusted network.
+
+### Without Docker
+
+`npm start` runs the same standalone server (`node server.mjs`) directly, without a container. Requires Node 24+ and a production build first:
+
+```sh
+npm install
+npm run build
+npm start   # serves on :3000, data in ./data
+```
+
+Data defaults to `./data` (configurable via `PGLITE_DATA_DIR`); the port defaults to `3000` (configurable via `PORT`).
 
 ## Local development
 

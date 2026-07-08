@@ -1,0 +1,26 @@
+# Dependencies and build output (both recreated inside the image)
+node_modules
+dist
+
+# VCS / deployment metadata
+.git
+.vercel
+.vscode
+.idea
+
+# Secrets and local env
+.env*
+
+# Local PGlite data and test artifacts
+data
+tmp-test-data
+*.log
+
+# Docs and agent-tooling files not needed in the image
+*.md
+.agents
+skills-lock.json
+
+# Docker files themselves
+Dockerfile
+.dockerignore

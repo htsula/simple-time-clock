@@ -8,17 +8,18 @@
     "dev:api": "node scripts/dev-server.mjs",
     "db:setup": "node scripts/db-setup.mjs",
     "build": "tsc -b && vite build",
+    "start": "node server.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@neondatabase/serverless": "^1.1.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.4",
     "@tailwindcss/vite": "^4.3.2",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
