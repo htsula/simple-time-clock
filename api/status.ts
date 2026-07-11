@@ -1,7 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { db, isValidEmployeeId } from "./_db.js";
+import { rateLimit } from "./_rateLimit.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!rateLimit(req, res, "employee-lookup", 1000)) return;
+
   if (req.method !== "GET") {
     res.status(405).json({ error: "Method not allowed" });
     return;

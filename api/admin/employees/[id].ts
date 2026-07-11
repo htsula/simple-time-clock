@@ -20,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const rows = await sql`
       UPDATE employees SET active = ${active} WHERE id = ${id}::bigint
-      RETURNING id, name, active, is_admin AS "isAdmin"
+      RETURNING id::text AS id, name, active, is_admin AS "isAdmin"
     `;
     if (rows.length === 0) {
       res.status(404).json({ error: "Employee not found" });

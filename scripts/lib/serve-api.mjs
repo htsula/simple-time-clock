@@ -39,6 +39,14 @@ function normalizeError(err) {
   return err;
 }
 
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 // Shim matching the parts of neon()'s interface the api/ handlers use:
 // tagged-template calls returning a row array.
 export function makeSql(pglite) {
@@ -81,6 +89,9 @@ export async function createApiHandler(pglite) {
   const logout = (await import("../../api/admin/logout.ts")).default;
   const employees = (await import("../../api/admin/employees/index.ts")).default;
   const employeeById = (await import("../../api/admin/employees/[id].ts")).default;
+  const shifts = (await import("../../api/admin/shifts/index.ts")).default;
+  const shiftById = (await import("../../api/admin/shifts/[id].ts")).default;
+  const reports = (await import("../../api/admin/reports.ts")).default;
 
   function route(pathname) {
     if (pathname === "/api/status") return { handler: status };
@@ -88,8 +99,12 @@ export async function createApiHandler(pglite) {
     if (pathname === "/api/admin/login") return { handler: login };
     if (pathname === "/api/admin/logout") return { handler: logout };
     if (pathname === "/api/admin/employees") return { handler: employees };
+    if (pathname === "/api/admin/shifts") return { handler: shifts };
+    if (pathname === "/api/admin/reports") return { handler: reports };
     const match = pathname.match(/^\/api\/admin\/employees\/([^/]+)$/);
-    if (match) return { handler: employeeById, params: { id: decodeURIComponent(match[1]) } };
+    if (match) return { handler: employeeById, params: { id: safeDecode(match[1]) } };
+    const shiftMatch = pathname.match(/^\/api\/admin\/shifts\/([^/]+)$/);
+    if (shiftMatch) return { handler: shiftById, params: { id: safeDecode(shiftMatch[1]) } };
     return null;
   }
 

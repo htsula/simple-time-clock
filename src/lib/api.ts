@@ -82,3 +82,61 @@ export function deleteEmployee(token: string, id: string): Promise<{ ok: true }>
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+export type Shift = {
+  id: number;
+  employeeId: string;
+  employeeName: string;
+  clockIn: string;
+  clockOut: string | null;
+};
+
+export type ReportEmployee = {
+  id: string;
+  name: string;
+  shifts: number;
+  seconds: number;
+};
+
+export type Report = {
+  totalShifts: number;
+  totalSeconds: number;
+  firstShiftYear: number | null;
+  employees: ReportEmployee[];
+};
+
+export function listShifts(
+  token: string,
+  opts?: { employee?: string; from?: string; to?: string }
+): Promise<Shift[]> {
+  const params = new URLSearchParams();
+  if (opts?.employee !== undefined) params.set("employee", opts.employee);
+  if (opts?.from !== undefined) params.set("from", opts.from);
+  if (opts?.to !== undefined) params.set("to", opts.to);
+  const query = params.toString();
+  return request(`/api/admin/shifts${query ? `?${query}` : ""}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateShift(
+  token: string,
+  id: number,
+  patch: { clockIn?: string; clockOut?: string | null }
+): Promise<Shift> {
+  return request(`/api/admin/shifts/${id}`, jsonInit("PATCH", patch, token));
+}
+
+export function deleteShift(token: string, id: number): Promise<{ ok: true }> {
+  return request(`/api/admin/shifts/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getReport(token: string, from: string, to: string): Promise<Report> {
+  const params = new URLSearchParams({ from, to });
+  return request(`/api/admin/reports?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}

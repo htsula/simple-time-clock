@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "GET") {
     const rows = await sql`
-      SELECT id, name, active, is_admin AS "isAdmin"
+      SELECT id::text AS id, name, active, is_admin AS "isAdmin"
       FROM employees ORDER BY active DESC, name ASC
     `;
     res.status(200).json(rows);
@@ -48,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ${requestedId}::bigint, ${trimmedName},
             NOT EXISTS (SELECT 1 FROM employees WHERE is_admin)
           )
-          RETURNING id, name, active, is_admin AS "isAdmin"
+          RETURNING id::text AS id, name, active, is_admin AS "isAdmin"
         `;
         res.status(201).json(rows[0]);
       } catch (err) {
@@ -71,7 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           NOT EXISTS (SELECT 1 FROM employees WHERE is_admin)
         )
         ON CONFLICT (id) DO NOTHING
-        RETURNING id, name, active, is_admin AS "isAdmin"
+        RETURNING id::text AS id, name, active, is_admin AS "isAdmin"
       `;
       if (rows.length > 0) {
         res.status(201).json(rows[0]);

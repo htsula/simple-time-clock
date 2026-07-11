@@ -1,0 +1,17 @@
+services:
+  time-clock:
+    build: .
+    container_name: time-clock
+    # Bound to localhost: put a reverse proxy with HTTPS in front (see README).
+    # For plain LAN access, change to "3000:3000".
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - time-clock-data:/data
+    restart: unless-stopped
+
+volumes:
+  time-clock-data:
+    # Fixed name (no compose project prefix) so the same volume is found when
+    # running via plain `docker run -v time-clock-data:/data`.
+    name: time-clock-data
