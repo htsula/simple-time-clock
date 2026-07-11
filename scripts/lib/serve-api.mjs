@@ -10,8 +10,7 @@
 // registered first.
 
 import { registerHooks } from "node:module";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { runMigrations, pgliteAdapter } from "./migrate.mjs";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -25,8 +24,6 @@ registerHooks({
     return nextResolve(specifier, context);
   },
 });
-
-const schemaPath = fileURLToPath(new URL("../../db/schema.sql", import.meta.url));
 
 function normalizeValue(value) {
   return typeof value === "bigint" ? String(value) : value;
@@ -72,12 +69,12 @@ export function makeSql(pglite) {
   return sql;
 }
 
-// Applies db/schema.sql (idempotent), injects a PGlite-backed client into
+// Runs db/migrations (idempotent), injects a PGlite-backed client into
 // api/_db.ts, loads the handlers, and returns `handleApi(req, res)`: an async
 // function that serves matching /api/* routes and returns true, or returns
 // false without touching the response when no route matches.
 export async function createApiHandler(pglite) {
-  await pglite.exec(readFileSync(schemaPath, "utf8"));
+  await runMigrations(pgliteAdapter(pglite));
 
   const { setDbClient } = await import("../../api/_db.ts");
   setDbClient(makeSql(pglite));

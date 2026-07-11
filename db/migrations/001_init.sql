@@ -1,3 +1,7 @@
+-- Baseline schema. Written with IF NOT EXISTS so that databases created before
+-- the migration system existed can adopt it safely: this migration re-runs
+-- against them as a no-op, then gets recorded in schema_migrations.
+
 CREATE TABLE IF NOT EXISTS employees (
   id       BIGINT PRIMARY KEY,
   name     TEXT NOT NULL,

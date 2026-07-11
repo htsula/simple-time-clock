@@ -15,7 +15,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.4",
+    "@electric-sql/pglite": "0.5.4",
     "@neondatabase/serverless": "^1.1.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

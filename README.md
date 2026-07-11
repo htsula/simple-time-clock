@@ -13,7 +13,7 @@ git clone https://github.com/htsula/simple-time-clock.git && cd simple-time-cloc
 docker compose up -d --build
 ```
 
-Open http://localhost:3000. Data persists in the `time-clock-data` volume; to update, `git pull` and re-run the compose command.
+Open http://localhost:3000. Data persists in the `time-clock-data` volume and survives updates; schema migrations apply automatically on start. To update, `git pull` and re-run the compose command.
 
 ### Without Docker
 
@@ -25,13 +25,13 @@ npm run build
 npm start
 ```
 
-Open http://localhost:3000. Data persists in `./data`.
+Open http://localhost:3000. Data persists in `./data`; schema migrations apply automatically on start.
 
 ### Vercel
 
 1. Push this repo to GitHub and import it into Vercel (the Vite preset is auto-detected).
 2. In the project's **Storage** tab, create/attach a **Neon** Postgres database — this injects `DATABASE_URL`.
-3. Deploy, then apply the schema once:
+3. Deploy, then apply the database migrations:
 
 ```sh
 npm i -g vercel
@@ -39,6 +39,12 @@ vercel link
 vercel env pull .env.local
 npm run db:setup
 ```
+
+Re-run `npm run db:setup` after pulling an update that adds a migration. It applies only the migrations not yet run and is safe to run repeatedly. (Self-hosted deployments do this automatically on start.)
+
+### Database migrations
+
+Schema changes live in `db/migrations/NNN_name.sql` and run once each, in filename order, tracked in a `schema_migrations` table. To change the schema, add the next numbered file (e.g. `002_add_column.sql`) — never edit an already-released migration. Write each migration to be idempotent (`IF NOT EXISTS` / `IF EXISTS` / guards) so a re-run is a no-op.
 
 ## Usage
 

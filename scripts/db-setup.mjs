@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { neon } from "@neondatabase/serverless";
+import { runMigrations, neonAdapter } from "./lib/migrate.mjs";
 
 // Load .env.local / .env if DATABASE_URL isn't already set (vercel env pull writes .env.local)
 for (const file of [".env.local", ".env"]) {
@@ -19,14 +20,10 @@ if (!process.env.DATABASE_URL) {
 }
 
 const sql = neon(process.env.DATABASE_URL);
-const schema = readFileSync(resolve(process.cwd(), "db/schema.sql"), "utf8");
-const statements = schema
-  .split(";")
-  .map((s) => s.trim())
-  .filter(Boolean);
+const applied = await runMigrations(neonAdapter(sql));
 
-for (const statement of statements) {
-  await sql.query(statement);
+if (applied.length > 0) {
+  console.log(`Applied ${applied.length} migration(s): ${applied.join(", ")}`);
+} else {
+  console.log("Database already up to date; no migrations to apply.");
 }
-
-console.log(`Applied ${statements.length} statements from db/schema.sql`);
