@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, getStatus, postClock, type ClockStatus } from "../lib/api";
 
 function formatTime(iso: string): string {
@@ -11,9 +11,12 @@ function formatTime(iso: string): string {
 }
 
 export default function Clock() {
+  const { employee } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const employeeId = searchParams.get("employee");
+  const employeeId = employee ?? null;
+  // Legacy links used /clock?employee=<id>; forward them to the path form.
+  const legacyId = searchParams.get("employee");
 
   const [status, setStatus] = useState<ClockStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -21,7 +24,11 @@ export default function Clock() {
 
   useEffect(() => {
     if (!employeeId) {
-      navigate("/", { replace: true });
+      if (legacyId) {
+        navigate(`/clock/${encodeURIComponent(legacyId)}`, { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
       return;
     }
     let cancelled = false;
@@ -36,7 +43,7 @@ export default function Clock() {
     return () => {
       cancelled = true;
     };
-  }, [employeeId, navigate]);
+  }, [employeeId, legacyId, navigate]);
 
   if (!employeeId || !status) {
     return (

@@ -12,6 +12,7 @@ import Reports from './pages/admin/Reports.tsx'
 const router = createBrowserRouter([
   { path: '/', element: <Home /> },
   { path: '/clock', element: <Clock /> },
+  { path: '/clock/:employee', element: <Clock /> },
   {
     path: '/admin',
     element: <Admin />,

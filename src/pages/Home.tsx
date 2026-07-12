@@ -9,7 +9,7 @@ export default function Home() {
     event.preventDefault();
     const id = employeeId.trim();
     if (!id) return;
-    navigate(`/clock?employee=${encodeURIComponent(id)}`);
+    navigate(`/clock/${encodeURIComponent(id)}`);
   }
 
   return (
