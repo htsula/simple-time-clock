@@ -83,6 +83,56 @@ export function deleteEmployee(token: string, id: string): Promise<{ ok: true }>
   });
 }
 
+export type ApiKeyAccess = "read" | "full";
+
+export type ApiKey = {
+  id: number;
+  name: string;
+  access: ApiKeyAccess;
+  prefix: string;
+  createdAt: string;
+};
+
+export type AdminSession = {
+  id: number;
+  createdAt: string;
+  current: boolean;
+};
+
+export function listApiKeys(
+  token: string
+): Promise<{ keys: ApiKey[]; sessions: AdminSession[] }> {
+  return request("/api/admin/keys", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function createApiKey(
+  token: string,
+  name: string,
+  access: ApiKeyAccess
+): Promise<ApiKey & { key: string }> {
+  return request("/api/admin/keys", jsonInit("POST", { name, access }, token));
+}
+
+export function renameApiKey(token: string, id: number, name: string): Promise<ApiKey> {
+  return request(`/api/admin/keys/${id}`, jsonInit("PATCH", { name }, token));
+}
+
+export function deleteApiKey(token: string, id: number): Promise<{ ok: true }> {
+  return request(`/api/admin/keys/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function revokeSession(token: string, id: number): Promise<{ ok: true }> {
+  return request(`/api/admin/sessions/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 export type Shift = {
   id: number;
   employeeId: string;

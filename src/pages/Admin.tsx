@@ -49,10 +49,11 @@ export default function Admin() {
             </button>
           </header>
 
-          <nav className="flex gap-2 mb-6">
+          <nav className="flex flex-wrap gap-2 mb-6">
             <AdminTab to="/admin/employees" label="Employees" />
             <AdminTab to="/admin/shifts" label="Shifts" />
             <AdminTab to="/admin/reports" label="Reports" />
+            <AdminTab to="/admin/keys" label="API Keys" />
           </nav>
 
           <Outlet

@@ -8,6 +8,7 @@ import Admin from './pages/Admin.tsx'
 import Employees from './pages/admin/Employees.tsx'
 import Shifts from './pages/admin/Shifts.tsx'
 import Reports from './pages/admin/Reports.tsx'
+import ApiKeys from './pages/admin/ApiKeys.tsx'
 
 const router = createBrowserRouter([
   { path: '/', element: <Home /> },
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
       { path: 'employees', element: <Employees /> },
       { path: 'shifts', element: <Shifts /> },
       { path: 'reports', element: <Reports /> },
+      { path: 'keys', element: <ApiKeys /> },
     ],
   },
 ])

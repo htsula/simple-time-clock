@@ -63,7 +63,7 @@ Schema changes live in `db/migrations/NNN_name.sql` and run once each, in filena
 | --- | --- | --- |
 | `GET /api/status?employee=<id>` | — | `{ name, status: "IN"\|"OUT", time }`; 404 for unknown/inactive IDs |
 | `POST /api/clock` `{ employeeId, action }` | — | Clocks in/out using the server clock; 409 if the action doesn't match the current state |
-| `POST /api/admin/login` `{ employeeId }` | — | Returns a session token (valid until logout). Accepts only the admin's employee ID; while the database has no admin yet, any ID logs in (bootstrap) |
+| `POST /api/admin/login` `{ employeeId }` | — | Returns a session token (valid until logout or revoked). Accepts only the admin's employee ID; while the database has no admin yet, any ID logs in (bootstrap) |
 | `POST /api/admin/logout` | Bearer | Invalidates the token |
 | `GET /api/admin/employees` | Bearer | List all employees |
 | `POST /api/admin/employees` `{ name, id? }` | Bearer | Add an employee; generates a random unused 8-digit ID when `id` is omitted. The first employee added becomes the admin |
@@ -73,3 +73,25 @@ Schema changes live in `db/migrations/NNN_name.sql` and run once each, in filena
 | `PATCH /api/admin/shifts/:id` `{ clockIn?, clockOut? }` | Bearer | Edit a shift's times; `clockOut: null` reopens the shift. 409 if the employee already has an open shift |
 | `DELETE /api/admin/shifts/:id` | Bearer | Permanently delete the shift |
 | `GET /api/admin/reports?from=&to=` | Bearer | Totals and per-employee shift counts and worked seconds for shifts starting in the range; open shifts count their elapsed time so far |
+| `GET /api/admin/keys` | Session | List API keys (newest first) and admin login sessions; the caller's own session is marked `current`. Never includes secrets |
+| `POST /api/admin/keys` `{ name, access }` | Session | Create an API key; `access` is `"read"` or `"full"`. The only response that contains the full key |
+| `PATCH /api/admin/keys/:id` `{ name }` | Session | Rename an API key (access can't be changed) |
+| `DELETE /api/admin/keys/:id` | Session | Delete an API key; it stops working immediately |
+| `DELETE /api/admin/sessions/:id` | Session | Revoke another admin session. Your own session can't be revoked here; use logout |
+
+"Bearer" endpoints accept either a login session token or an API key. "Session" endpoints (and logout) accept only a login session token.
+
+### API keys
+
+Create keys in the admin panel's **API Keys** tab for scripts and other programs. There are two access levels:
+
+- **Read only**: `GET` requests only; anything else returns 403.
+- **Full access**: everything a login session can do, except managing keys and sessions.
+
+The full key (`tc_...`) is shown once when it is created; only a hash is stored, so a lost key has to be deleted and replaced. Send it like a session token:
+
+```
+Authorization: Bearer tc_...
+```
+
+Managing keys, revoking sessions and logging out require an admin login session; API keys are refused (403) on those routes.

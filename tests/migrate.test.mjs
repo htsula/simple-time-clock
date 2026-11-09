@@ -71,4 +71,19 @@ describe("runMigrations (PGlite)", () => {
     assert.equal(rows.rows[0].name, "Existing"); // existing data survives
     await pglite.close();
   });
+
+  it("backfills ids for admin sessions that existed before 002_api_keys", async () => {
+    const pglite = new PGlite();
+    const [init, apiKeys] = loadMigrations();
+    await pglite.exec(init.sql);
+    await pglite.query("INSERT INTO admin_sessions (token) VALUES ('a'), ('b')");
+    await pglite.exec(apiKeys.sql);
+    await pglite.exec(apiKeys.sql); // idempotent on a re-attempt
+
+    const rows = await pglite.query("SELECT token, id FROM admin_sessions ORDER BY id");
+    assert.equal(rows.rows.length, 2);
+    assert.ok(rows.rows.every((r) => Number.isInteger(r.id)));
+    assert.notEqual(rows.rows[0].id, rows.rows[1].id);
+    await pglite.close();
+  });
 });

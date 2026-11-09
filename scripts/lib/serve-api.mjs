@@ -90,7 +90,16 @@ export async function createApiHandler(pglite) {
   const shiftById = (await import("../../api/admin/shifts/[id].ts")).default;
   const reports = (await import("../../api/admin/reports.ts")).default;
 
+  const keys = (await import("../../api/admin/keys/index.ts")).default;
+  const keyById = (await import("../../api/admin/keys/[id].ts")).default;
+  const sessionById = (await import("../../api/admin/sessions/[id].ts")).default;
+
   function route(pathname) {
+    if (pathname === "/api/admin/keys") return { handler: keys };
+    const keyMatch = pathname.match(/^\/api\/admin\/keys\/([^/]+)$/);
+    if (keyMatch) return { handler: keyById, params: { id: safeDecode(keyMatch[1]) } };
+    const sessionMatch = pathname.match(/^\/api\/admin\/sessions\/([^/]+)$/);
+    if (sessionMatch) return { handler: sessionById, params: { id: safeDecode(sessionMatch[1]) } };
     if (pathname === "/api/status") return { handler: status };
     if (pathname === "/api/clock") return { handler: clock };
     if (pathname === "/api/admin/login") return { handler: login };

@@ -63,6 +63,12 @@ describe("auth", () => {
     ["PATCH", "/api/admin/shifts/1"],
     ["DELETE", "/api/admin/shifts/1"],
     ["GET", "/api/admin/reports?from=2026-01-01&to=2026-02-01"],
+    ["GET", "/api/admin/keys"],
+    ["POST", "/api/admin/keys"],
+    ["PATCH", "/api/admin/keys/1"],
+    ["DELETE", "/api/admin/keys/1"],
+    ["DELETE", "/api/admin/sessions/1"],
+    ["POST", "/api/admin/logout"],
   ];
 
   it("returns 401 without a token", async () => {
@@ -369,6 +375,207 @@ describe("GET /api/admin/reports", () => {
       firstShiftYear: null,
       employees: [],
     });
+  });
+});
+
+describe("API keys", () => {
+  let fullKey;
+  let readKey;
+  let fullId;
+  let readId;
+
+  async function createKey(name, access) {
+    return api("POST", "/api/admin/keys", { auth: token, body: { name, access } });
+  }
+
+  it("creates keys and returns the secret exactly once", async () => {
+    const full = await createKey("  Full key  ", "full");
+    assert.equal(full.status, 201);
+    assert.equal(full.body.name, "Full key");
+    assert.equal(full.body.access, "full");
+    assert.match(full.body.key, /^tc_[0-9a-f]{64}$/);
+    assert.equal(full.body.prefix, full.body.key.slice(0, 10));
+    assert.equal(typeof full.body.id, "number");
+    assert.ok(!Number.isNaN(Date.parse(full.body.createdAt)));
+    fullKey = full.body.key;
+    fullId = full.body.id;
+
+    const read = await createKey("Read key", "read");
+    assert.equal(read.status, 201);
+    readKey = read.body.key;
+    readId = read.body.id;
+  });
+
+  it("lists keys newest first without secrets", async () => {
+    const res = await api("GET", "/api/admin/keys", { auth: token });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.keys.map((k) => k.id), [readId, fullId]);
+    for (const k of res.body.keys) {
+      assert.deepEqual(Object.keys(k).sort(), ["access", "createdAt", "id", "name", "prefix"]);
+    }
+    const text = JSON.stringify(res.body);
+    assert.ok(!text.includes(fullKey) && !text.includes(readKey));
+    assert.ok(!text.includes("key_hash") && !text.includes(token));
+    for (const s of res.body.sessions) {
+      assert.deepEqual(Object.keys(s).sort(), ["createdAt", "current", "id"]);
+    }
+  });
+
+  it("validates name and access", async () => {
+    for (const body of [
+      { access: "read" },
+      { name: "   ", access: "read" },
+      { name: "x".repeat(101), access: "read" },
+      { name: 5, access: "read" },
+      { name: "ok" },
+      { name: "ok", access: "admin" },
+    ]) {
+      const res = await api("POST", "/api/admin/keys", { auth: token, body });
+      assert.equal(res.status, 400, JSON.stringify(body));
+      assert.equal(typeof res.body.error, "string");
+    }
+    const max = await createKey("x".repeat(100), "read");
+    assert.equal(max.status, 201);
+    await api("DELETE", `/api/admin/keys/${max.body.id}`, { auth: token });
+  });
+
+  it("renames a key but not its access", async () => {
+    const res = await api("PATCH", `/api/admin/keys/${readId}`, {
+      auth: token,
+      body: { name: " Renamed ", access: "full" },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.name, "Renamed");
+    assert.equal(res.body.access, "read");
+    assert.equal("key" in res.body, false);
+    for (const body of [{}, { name: "" }, { name: "x".repeat(101) }]) {
+      const bad = await api("PATCH", `/api/admin/keys/${readId}`, { auth: token, body });
+      assert.equal(bad.status, 400, JSON.stringify(body));
+    }
+  });
+
+  it("returns 404 for unknown or invalid key ids", async () => {
+    for (const id of ["999999", "abc"]) {
+      const patch = await api("PATCH", `/api/admin/keys/${id}`, { auth: token, body: { name: "x" } });
+      assert.equal(patch.status, 404, id);
+      const del = await api("DELETE", `/api/admin/keys/${id}`, { auth: token });
+      assert.equal(del.status, 404, id);
+    }
+  });
+
+  it("lets a full-access key read and write", async () => {
+    const list = await api("GET", "/api/admin/employees", { auth: fullKey });
+    assert.equal(list.status, 200);
+    const created = await api("POST", "/api/admin/employees", {
+      auth: fullKey,
+      body: { name: "Via key", id: "2001" },
+    });
+    assert.equal(created.status, 201);
+    const patched = await api("PATCH", "/api/admin/employees/2001", {
+      auth: fullKey,
+      body: { active: false },
+    });
+    assert.equal(patched.status, 200);
+    const deleted = await api("DELETE", "/api/admin/employees/2001", { auth: fullKey });
+    assert.equal(deleted.status, 200);
+  });
+
+  it("lets a read-only key GET but refuses writes with 403", async () => {
+    for (const path of [
+      "/api/admin/employees",
+      "/api/admin/shifts",
+      "/api/admin/reports?from=2026-01-01T00:00:00Z&to=2026-02-01T00:00:00Z",
+    ]) {
+      const res = await api("GET", path, { auth: readKey });
+      assert.equal(res.status, 200, path);
+    }
+    const writes = [
+      ["POST", "/api/admin/employees", { name: "Nope" }],
+      ["PATCH", "/api/admin/employees/1002", { active: false }],
+      ["DELETE", "/api/admin/employees/1002", undefined],
+      ["PATCH", "/api/admin/shifts/1", { clockIn: "2026-01-01T09:00:00Z" }],
+      ["DELETE", "/api/admin/shifts/1", undefined],
+    ];
+    for (const [method, path, body] of writes) {
+      const res = await api(method, path, { auth: readKey, body });
+      assert.equal(res.status, 403, `${method} ${path}`);
+      assert.equal(typeof res.body.error, "string");
+    }
+    const still = await api("GET", "/api/admin/employees", { auth: token });
+    assert.ok(still.body.some((e) => e.id === "1002" && e.active));
+  });
+
+  it("refuses key and session management and logout to any API key", async () => {
+    const routes = [
+      ["GET", "/api/admin/keys"],
+      ["POST", "/api/admin/keys", { name: "x", access: "read" }],
+      ["PATCH", `/api/admin/keys/${fullId}`, { name: "x" }],
+      ["DELETE", `/api/admin/keys/${fullId}`],
+      ["DELETE", "/api/admin/sessions/999"],
+      ["POST", "/api/admin/logout"],
+    ];
+    for (const key of [fullKey, readKey]) {
+      for (const [method, path, body] of routes) {
+        const res = await api(method, path, { auth: key, body });
+        assert.equal(res.status, 403, `${method} ${path}`);
+      }
+    }
+    const list = await api("GET", "/api/admin/keys", { auth: token });
+    assert.equal(list.body.keys.length, 2); // nothing was created or deleted
+  });
+
+  it("rejects a deleted key with 401", async () => {
+    const del = await api("DELETE", `/api/admin/keys/${fullId}`, { auth: token });
+    assert.equal(del.status, 200);
+    assert.deepEqual(del.body, { ok: true });
+    const res = await api("GET", "/api/admin/employees", { auth: fullKey });
+    assert.equal(res.status, 401);
+    const del2 = await api("DELETE", `/api/admin/keys/${readId}`, { auth: token });
+    assert.equal(del2.status, 200);
+  });
+
+  it("rejects an unknown tc_ key with 401", async () => {
+    const res = await api("GET", "/api/admin/employees", { auth: "tc_" + "0".repeat(64) });
+    assert.equal(res.status, 401);
+  });
+});
+
+describe("admin sessions", () => {
+  it("marks exactly the caller's session as current", async () => {
+    const res = await api("GET", "/api/admin/keys", { auth: token });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.sessions.filter((s) => s.current).length, 1);
+  });
+
+  it("shows a second login, revokes it, and refuses to revoke the caller", async () => {
+    const before = await api("GET", "/api/admin/keys", { auth: token });
+    const login = await api("POST", "/api/admin/login", { body: { employeeId: "1001" } });
+    assert.equal(login.status, 200);
+    const other = login.body.token;
+
+    const after = await api("GET", "/api/admin/keys", { auth: token });
+    assert.equal(after.body.sessions.length, before.body.sessions.length + 1);
+    assert.equal(after.body.sessions.filter((s) => s.current).length, 1);
+    const otherView = await api("GET", "/api/admin/keys", { auth: other });
+    const otherCurrent = otherView.body.sessions.find((s) => s.current);
+    const myCurrent = after.body.sessions.find((s) => s.current);
+    assert.notEqual(otherCurrent.id, myCurrent.id);
+
+    const own = await api("DELETE", `/api/admin/sessions/${myCurrent.id}`, { auth: token });
+    assert.equal(own.status, 400);
+
+    const revoked = await api("DELETE", `/api/admin/sessions/${otherCurrent.id}`, { auth: token });
+    assert.equal(revoked.status, 200);
+    assert.deepEqual(revoked.body, { ok: true });
+    const dead = await api("GET", "/api/admin/employees", { auth: other });
+    assert.equal(dead.status, 401);
+    const alive = await api("GET", "/api/admin/employees", { auth: token });
+    assert.equal(alive.status, 200);
+
+    const again = await api("DELETE", `/api/admin/sessions/${otherCurrent.id}`, { auth: token });
+    assert.equal(again.status, 404);
+    const invalid = await api("DELETE", "/api/admin/sessions/abc", { auth: token });
+    assert.equal(invalid.status, 404);
   });
 });
 

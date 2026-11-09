@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAdmin } from "../_auth.js";
+import { requireSession } from "../_auth.js";
 import { db } from "../_db.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -8,10 +8,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const token = await requireAdmin(req, res);
-  if (!token) return;
+  const auth = await requireSession(req, res);
+  if (!auth) return;
 
   const sql = db();
-  await sql`DELETE FROM admin_sessions WHERE token = ${token}`;
+  await sql`DELETE FROM admin_sessions WHERE token = ${auth.token}`;
   res.status(200).json({ ok: true });
 }
