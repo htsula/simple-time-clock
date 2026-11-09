@@ -40,7 +40,7 @@ vercel env pull .env.local
 npm run db:setup
 ```
 
-Re-run `npm run db:setup` after pulling an update that adds a migration. It applies only the migrations not yet run and is safe to run repeatedly. (Self-hosted deployments do this automatically on start.)
+When an update adds a migration, run `npm run db:setup` **before** deploying the new code (pull the update locally, run it, then push/deploy). Migrations only add to the schema, so the version already running keeps working on the migrated database, while new code on an unmigrated database returns errors on the admin API until the migration is applied. The command applies only the migrations not yet run and is safe to run repeatedly. (Self-hosted deployments do this automatically on start.)
 
 ### Database migrations
 
