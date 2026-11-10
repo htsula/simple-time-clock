@@ -7,6 +7,7 @@ const TOKEN_KEY = "adminToken";
 export type AdminOutletContext = {
   token: string;
   onUnauthorized: () => void;
+  onLogout: () => void;
 };
 
 export default function Admin() {
@@ -58,7 +59,11 @@ export default function Admin() {
 
           <Outlet
             context={
-              { token, onUnauthorized: handleLogout } satisfies AdminOutletContext
+              {
+                token,
+                onUnauthorized: handleLogout,
+                onLogout: handleLogoutClick,
+              } satisfies AdminOutletContext
             }
           />
         </div>

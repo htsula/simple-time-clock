@@ -80,7 +80,7 @@ function RenameForm({
 }
 
 export default function ApiKeys() {
-  const { token, onUnauthorized } = useOutletContext<AdminOutletContext>();
+  const { token, onUnauthorized, onLogout } = useOutletContext<AdminOutletContext>();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [sessions, setSessions] = useState<AdminSession[]>([]);
   const [newName, setNewName] = useState("");
@@ -390,16 +390,20 @@ export default function ApiKeys() {
                   >
                     Rename
                   </button>
-                  {!session.current && (
-                    <button
-                      type="button"
-                      aria-label={`Revoke session ${session.name ?? `from ${formatDate(session.createdAt)}`}`}
-                      onClick={() => setToRevoke(session)}
-                      className="cursor-pointer border border-[#a53a3a] rounded-lg bg-[#a53a3a] px-3 py-1.5 text-[0.9rem] text-white"
-                    >
-                      Revoke
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    aria-label={
+                      session.current
+                        ? "Revoke this session and log out"
+                        : `Revoke session ${session.name ?? `from ${formatDate(session.createdAt)}`}`
+                    }
+                    onClick={() =>
+                      session.current ? onLogout() : setToRevoke(session)
+                    }
+                    className="cursor-pointer border border-[#a53a3a] rounded-lg bg-[#a53a3a] px-3 py-1.5 text-[0.9rem] text-white"
+                  >
+                    Revoke
+                  </button>
                 </span>
               </>
             )}
