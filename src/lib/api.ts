@@ -95,6 +95,7 @@ export type ApiKey = {
 
 export type AdminSession = {
   id: number;
+  name: string | null;
   createdAt: string;
   current: boolean;
 };
@@ -124,6 +125,10 @@ export function deleteApiKey(token: string, id: number): Promise<{ ok: true }> {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
+}
+
+export function renameSession(token: string, id: number, name: string): Promise<AdminSession> {
+  return request(`/api/admin/sessions/${id}`, jsonInit("PATCH", { name }, token));
 }
 
 export function revokeSession(token: string, id: number): Promise<{ ok: true }> {

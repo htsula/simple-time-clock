@@ -86,4 +86,22 @@ describe("runMigrations (PGlite)", () => {
     assert.notEqual(rows.rows[0].id, rows.rows[1].id);
     await pglite.close();
   });
+
+  it("adds a nullable name to existing admin sessions in 003_session_names", async () => {
+    const pglite = new PGlite();
+    const [init, apiKeys, names] = loadMigrations();
+    assert.equal(names.version, "003_session_names");
+    await pglite.exec(init.sql);
+    await pglite.exec(apiKeys.sql);
+    await pglite.query("INSERT INTO admin_sessions (token) VALUES ('a'), ('b')");
+    await pglite.exec(names.sql);
+    await pglite.exec(names.sql); // idempotent on a re-attempt
+
+    const rows = await pglite.query("SELECT token, name FROM admin_sessions ORDER BY id");
+    assert.equal(rows.rows.length, 2);
+    assert.ok(rows.rows.every((r) => r.name === null));
+    // Old-style inserts (token only) keep working.
+    await pglite.query("INSERT INTO admin_sessions (token) VALUES ('c')");
+    await pglite.close();
+  });
 });

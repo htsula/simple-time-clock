@@ -67,6 +67,7 @@ describe("auth", () => {
     ["POST", "/api/admin/keys"],
     ["PATCH", "/api/admin/keys/1"],
     ["DELETE", "/api/admin/keys/1"],
+    ["PATCH", "/api/admin/sessions/1"],
     ["DELETE", "/api/admin/sessions/1"],
     ["POST", "/api/admin/logout"],
   ];
@@ -417,7 +418,7 @@ describe("API keys", () => {
     assert.ok(!text.includes(fullKey) && !text.includes(readKey));
     assert.ok(!text.includes("key_hash") && !text.includes(token));
     for (const s of res.body.sessions) {
-      assert.deepEqual(Object.keys(s).sort(), ["createdAt", "current", "id"]);
+      assert.deepEqual(Object.keys(s).sort(), ["createdAt", "current", "id", "name"]);
     }
   });
 
@@ -511,6 +512,7 @@ describe("API keys", () => {
       ["POST", "/api/admin/keys", { name: "x", access: "read" }],
       ["PATCH", `/api/admin/keys/${fullId}`, { name: "x" }],
       ["DELETE", `/api/admin/keys/${fullId}`],
+      ["PATCH", "/api/admin/sessions/999", { name: "x" }],
       ["DELETE", "/api/admin/sessions/999"],
       ["POST", "/api/admin/logout"],
     ];
@@ -545,6 +547,70 @@ describe("admin sessions", () => {
     const res = await api("GET", "/api/admin/keys", { auth: token });
     assert.equal(res.status, 200);
     assert.equal(res.body.sessions.filter((s) => s.current).length, 1);
+  });
+
+  it("renames sessions, clears names, and validates input", async () => {
+    const login = await api("POST", "/api/admin/login", { body: { employeeId: "1001" } });
+    const other = login.body.token;
+    const list = async () => (await api("GET", "/api/admin/keys", { auth: token })).body.sessions;
+    const mine = (await list()).find((s) => s.current);
+    const theirs = (await api("GET", "/api/admin/keys", { auth: other })).body.sessions.find(
+      (s) => s.current
+    );
+    assert.equal(theirs.name, null); // new sessions start unnamed
+
+    // Rename the caller's own session.
+    const own = await api("PATCH", `/api/admin/sessions/${mine.id}`, {
+      auth: token,
+      body: { name: "  Office PC  " },
+    });
+    assert.equal(own.status, 200);
+    assert.deepEqual(Object.keys(own.body).sort(), ["createdAt", "current", "id", "name"]);
+    assert.equal(own.body.name, "Office PC");
+    assert.equal(own.body.current, true);
+    assert.equal(own.body.id, mine.id);
+
+    // Rename another session; the caller sees current=false.
+    const rn = await api("PATCH", `/api/admin/sessions/${theirs.id}`, {
+      auth: token,
+      body: { name: "x".repeat(100) },
+    });
+    assert.equal(rn.status, 200);
+    assert.equal(rn.body.current, false);
+    assert.ok(!JSON.stringify(rn.body).includes(other));
+
+    const named = await list();
+    assert.equal(named.find((s) => s.id === mine.id).name, "Office PC");
+    assert.equal(named.find((s) => s.id === theirs.id).name, "x".repeat(100));
+
+    // Empty or whitespace clears the name.
+    for (const empty of ["", "   "]) {
+      await api("PATCH", `/api/admin/sessions/${mine.id}`, { auth: token, body: { name: "A" } });
+      const cleared = await api("PATCH", `/api/admin/sessions/${mine.id}`, {
+        auth: token,
+        body: { name: empty },
+      });
+      assert.equal(cleared.status, 200);
+      assert.equal(cleared.body.name, null);
+      assert.equal((await list()).find((s) => s.id === mine.id).name, null);
+    }
+
+    for (const body of [{ name: "x".repeat(101) }, { name: 5 }, { name: null }, {}]) {
+      const bad = await api("PATCH", `/api/admin/sessions/${theirs.id}`, { auth: token, body });
+      assert.equal(bad.status, 400, JSON.stringify(body));
+      assert.equal(typeof bad.body.error, "string");
+    }
+    assert.equal((await list()).find((s) => s.id === theirs.id).name, "x".repeat(100));
+
+    for (const id of ["999999", "abc"]) {
+      const missing = await api("PATCH", `/api/admin/sessions/${id}`, {
+        auth: token,
+        body: { name: "x" },
+      });
+      assert.equal(missing.status, 404, id);
+    }
+
+    await api("DELETE", `/api/admin/sessions/${theirs.id}`, { auth: token });
   });
 
   it("shows a second login, revokes it, and refuses to revoke the caller", async () => {

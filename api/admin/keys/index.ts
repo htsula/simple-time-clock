@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       FROM api_keys ORDER BY created_at DESC, id DESC
     `;
     const sessions = await sql`
-      SELECT id, created_at AS "createdAt"
+      SELECT id, name, created_at AS "createdAt"
       FROM admin_sessions ORDER BY created_at DESC, id DESC
     `;
     res.status(200).json({

@@ -6,6 +6,7 @@ import {
   deleteApiKey,
   listApiKeys,
   renameApiKey,
+  renameSession,
   revokeSession,
   type AdminSession,
   type ApiKey,
@@ -22,6 +23,62 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+function RenameForm({
+  label,
+  placeholder,
+  value,
+  allowEmpty,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  allowEmpty: boolean;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <form
+      className="flex gap-2 w-full flex-wrap"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <input
+        type="text"
+        autoFocus
+        aria-label={label}
+        placeholder={placeholder}
+        maxLength={100}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onCancel();
+        }}
+        className="flex-1 border border-stone-300 rounded-lg bg-white px-3 py-1.5 text-stone-800 min-w-0"
+      />
+      <button
+        type="submit"
+        disabled={!allowEmpty && !value.trim()}
+        className="cursor-pointer border border-[#3a6ea5] rounded-lg bg-[#3a6ea5] px-3 py-1.5 text-[0.9rem] text-white disabled:opacity-50 disabled:cursor-default"
+      >
+        Save
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="cursor-pointer border border-stone-300 rounded-lg bg-white px-3 py-1.5 text-[0.9rem] text-stone-800"
+      >
+        Cancel
+      </button>
+    </form>
+  );
+}
+
 export default function ApiKeys() {
   const { token, onUnauthorized } = useOutletContext<AdminOutletContext>();
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -31,7 +88,8 @@ export default function ApiKeys() {
   const [createdKey, setCreatedKey] = useState<{ name: string; key: string } | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  // Only one row (key or session) is in edit mode at a time.
+  const [editing, setEditing] = useState<{ kind: "key" | "session"; id: number } | null>(null);
   const [editName, setEditName] = useState("");
   const [toDelete, setToDelete] = useState<ApiKey | null>(null);
   const [toRevoke, setToRevoke] = useState<AdminSession | null>(null);
@@ -95,8 +153,13 @@ export default function ApiKeys() {
   }
 
   function startEdit(key: ApiKey) {
-    setEditingId(key.id);
+    setEditing({ kind: "key", id: key.id });
     setEditName(key.name);
+  }
+
+  function startEditSession(session: AdminSession) {
+    setEditing({ kind: "session", id: session.id });
+    setEditName(session.name ?? "");
   }
 
   async function handleRename(key: ApiKey) {
@@ -105,7 +168,19 @@ export default function ApiKeys() {
     setError(null);
     try {
       await renameApiKey(token, key.id, name);
-      setEditingId(null);
+      setEditing(null);
+      await refresh();
+    } catch (err) {
+      handleError(err);
+    }
+  }
+
+  async function handleRenameSession(session: AdminSession) {
+    setError(null);
+    try {
+      // An empty name clears the session's name.
+      await renameSession(token, session.id, editName.trim());
+      setEditing(null);
       await refresh();
     } catch (err) {
       handleError(err);
@@ -220,41 +295,15 @@ export default function ApiKeys() {
             key={key.id}
             className="flex items-center justify-between gap-3 px-3.5 py-3 flex-wrap"
           >
-            {editingId === key.id ? (
-              <form
-                className="flex gap-2 w-full flex-wrap"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  handleRename(key);
-                }}
-              >
-                <input
-                  type="text"
-                  autoFocus
-                  aria-label={`New name for ${key.name}`}
-                  maxLength={100}
-                  value={editName}
-                  onChange={(event) => setEditName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") setEditingId(null);
-                  }}
-                  className="flex-1 border border-stone-300 rounded-lg bg-white px-3 py-1.5 text-stone-800 min-w-0"
-                />
-                <button
-                  type="submit"
-                  disabled={!editName.trim()}
-                  className="cursor-pointer border border-[#3a6ea5] rounded-lg bg-[#3a6ea5] px-3 py-1.5 text-[0.9rem] text-white disabled:opacity-50 disabled:cursor-default"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingId(null)}
-                  className="cursor-pointer border border-stone-300 rounded-lg bg-white px-3 py-1.5 text-[0.9rem] text-stone-800"
-                >
-                  Cancel
-                </button>
-              </form>
+            {editing?.kind === "key" && editing.id === key.id ? (
+              <RenameForm
+                label={`New name for ${key.name}`}
+                value={editName}
+                allowEmpty={false}
+                onChange={setEditName}
+                onSubmit={() => handleRename(key)}
+                onCancel={() => setEditing(null)}
+              />
             ) : (
               <>
                 <span className="flex items-baseline gap-2 flex-wrap min-w-0">
@@ -303,23 +352,56 @@ export default function ApiKeys() {
             key={session.id}
             className="flex items-center justify-between gap-3 px-3.5 py-3 flex-wrap"
           >
-            <span className="flex items-baseline gap-2 flex-wrap">
-              <span>{formatDate(session.createdAt)}</span>
-              {session.current && (
-                <span className="text-xs uppercase tracking-[0.04em] bg-[#3a6ea5]/15 text-[#3a6ea5] rounded px-1.5 py-0.5">
-                  Logged in as
+            {editing?.kind === "session" && editing.id === session.id ? (
+              <RenameForm
+                label={`New name for session from ${formatDate(session.createdAt)}`}
+                placeholder="Session name"
+                value={editName}
+                allowEmpty
+                onChange={setEditName}
+                onSubmit={() => handleRenameSession(session)}
+                onCancel={() => setEditing(null)}
+              />
+            ) : (
+              <>
+                <span className="flex items-baseline gap-2 flex-wrap min-w-0">
+                  {session.name ? (
+                    <>
+                      <span className="break-all">{session.name}</span>
+                      <span className="text-neutral-500 text-[0.9rem]">
+                        {formatDate(session.createdAt)}
+                      </span>
+                    </>
+                  ) : (
+                    <span>{formatDate(session.createdAt)}</span>
+                  )}
+                  {session.current && (
+                    <span className="text-xs uppercase tracking-[0.04em] bg-[#3a6ea5]/15 text-[#3a6ea5] rounded px-1.5 py-0.5">
+                      Logged in as
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-            {!session.current && (
-              <button
-                type="button"
-                aria-label={`Revoke session from ${formatDate(session.createdAt)}`}
-                onClick={() => setToRevoke(session)}
-                className="cursor-pointer border border-[#a53a3a] rounded-lg bg-[#a53a3a] px-3 py-1.5 text-[0.9rem] text-white"
-              >
-                Revoke
-              </button>
+                <span className="flex gap-2">
+                  <button
+                    type="button"
+                    aria-label={`Rename session ${session.name ?? `from ${formatDate(session.createdAt)}`}`}
+                    onClick={() => startEditSession(session)}
+                    className="cursor-pointer border border-stone-300 rounded-lg bg-white px-3 py-1.5 text-[0.9rem] text-stone-800"
+                  >
+                    Rename
+                  </button>
+                  {!session.current && (
+                    <button
+                      type="button"
+                      aria-label={`Revoke session ${session.name ?? `from ${formatDate(session.createdAt)}`}`}
+                      onClick={() => setToRevoke(session)}
+                      className="cursor-pointer border border-[#a53a3a] rounded-lg bg-[#a53a3a] px-3 py-1.5 text-[0.9rem] text-white"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </span>
+              </>
             )}
           </li>
         ))}
@@ -371,7 +453,7 @@ export default function ApiKeys() {
           <div className="bg-white rounded-xl p-6 w-full max-w-100">
             <h2 className="text-xl mb-3">Revoke this session?</h2>
             <p className="text-neutral-500 mb-5">
-              The session started {formatDate(toRevoke.createdAt)} will be logged out immediately.
+              The session {toRevoke.name ? `"${toRevoke.name}" ` : ""}started {formatDate(toRevoke.createdAt)} will be logged out immediately.
             </p>
             <div className="flex justify-end gap-2.5">
               <button
